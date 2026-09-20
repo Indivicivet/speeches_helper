@@ -1,0 +1,1 @@
+"""Speeches Helper core package."""
