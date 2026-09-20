@@ -32,9 +32,16 @@ class TestUIFlow(unittest.TestCase):
     def test_practice_timers_and_peeks(self):
         practice = self.window.practice_view
 
-        # Test hidden state toggle
+        # Timers must be hidden by default
+        self.assertTrue(practice.chk_hide_global.isChecked())
+        self.assertTrue(practice.chk_hide_phone.isChecked())
+        self.assertEqual(practice.lbl_global_timer.text(), "••:••")
+        self.assertEqual(practice.lbl_phone_timer.text(), "••:••")
+
+        # Test unchecking shows real time
+        practice.chk_hide_global.setChecked(False)
+        self.assertEqual(practice.lbl_global_timer.text(), "00:00")
         practice.chk_hide_global.setChecked(True)
-        practice._update_display()
         self.assertEqual(practice.lbl_global_timer.text(), "••:••")
 
         # Test peek global
@@ -45,11 +52,7 @@ class TestUIFlow(unittest.TestCase):
         practice._update_display()
         self.assertEqual(practice.lbl_global_timer.text(), "••:••")
 
-        # Test phone timer
-        practice.chk_hide_phone.setChecked(True)
-        practice._update_display()
-        self.assertEqual(practice.lbl_phone_timer.text(), "••:••")
-
+        # Test peek phone
         practice._on_peek_phone_press()
         practice._update_display()
         self.assertNotEqual(practice.lbl_phone_timer.text(), "••:••")
@@ -62,6 +65,12 @@ class TestUIFlow(unittest.TestCase):
         self.assertEqual(practice.btn_start_phone.text(), "Restart Phone Timer (T)")
         self.assertIn("RUNNING", practice.lbl_phone_status.text())
         self.assertEqual(len(practice.phone_timer_starts), 1)
+
+        # Test stopping timer BEFORE alarm triggers
+        practice.stop_timer_or_alarm()
+        self.assertFalse(practice.phone_timer_active)
+        self.assertEqual(practice.btn_start_phone.text(), "Start Phone Timer (T)")
+        self.assertEqual(practice.lbl_phone_status.text(), "○ Timer stopped")
 
         # Test starting again adds second start event
         practice.start_phone_timer()

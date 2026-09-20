@@ -88,6 +88,7 @@ class PracticeView(QWidget):
         global_vbox.setSpacing(12)
 
         self.chk_hide_global = QCheckBox("Hide Timer (Blind Practice)")
+        self.chk_hide_global.setChecked(True)
         self.chk_hide_global.stateChanged.connect(self._update_display)
 
         self.lbl_global_timer = QLabel("00:00")
@@ -109,6 +110,7 @@ class PracticeView(QWidget):
 
         phone_header = QHBoxLayout()
         self.chk_hide_phone = QCheckBox("Hide Phone Timer")
+        self.chk_hide_phone.setChecked(True)
         self.chk_hide_phone.stateChanged.connect(self._update_display)
 
         phone_dur_lbl = QLabel("Set (m:s):")
@@ -134,10 +136,9 @@ class PracticeView(QWidget):
         self.btn_start_phone = QPushButton("Start Phone Timer (T)")
         self.btn_start_phone.clicked.connect(self.start_phone_timer)
 
-        self.btn_stop_alarm = QPushButton("Stop Alarm (S)")
+        self.btn_stop_alarm = QPushButton("Stop Timer / Alarm (S)")
         self.btn_stop_alarm.setObjectName("btn_alarm_stop")
-        self.btn_stop_alarm.setEnabled(False)
-        self.btn_stop_alarm.clicked.connect(self.silence_alarm)
+        self.btn_stop_alarm.clicked.connect(self.stop_timer_or_alarm)
 
         phone_btn_row.addWidget(self.btn_start_phone)
         phone_btn_row.addWidget(self.btn_stop_alarm)
@@ -183,7 +184,7 @@ class PracticeView(QWidget):
 
         # Rehearsal shortcuts that trigger regardless of focused widget
         QShortcut(QKeySequence(Qt.Key_T), self, self.start_phone_timer)
-        QShortcut(QKeySequence(Qt.Key_S), self, self.silence_alarm)
+        QShortcut(QKeySequence(Qt.Key_S), self, self.stop_timer_or_alarm)
         QShortcut(QKeySequence(Qt.Key_Space), self, self.toggle_speech)
         QShortcut(QKeySequence(Qt.Key_Return), self, self.toggle_speech)
 
@@ -203,6 +204,8 @@ class PracticeView(QWidget):
         self.transcription_progress.setRange(0, 0)  # Indeterminate
         self.transcription_progress.setVisible(False)
         main_layout.addWidget(self.transcription_progress)
+
+        self._update_display()
 
     def set_mic_level(self, level):
         """Sets mic progress bar value (0.0 to 1.0)."""
@@ -316,14 +319,37 @@ class PracticeView(QWidget):
             )
         self._update_display()
 
-    def silence_alarm(self):
+    def stop_timer_or_alarm(self):
+        was_running = self.phone_timer_active
+        was_alarming = self.beeper.is_alarming()
+
         self.beeper.stop_alarm()
-        self.btn_stop_alarm.setEnabled(False)
-        if self.phone_timer_active and self.phone_remaining_seconds <= 0.0:
+        self.phone_timer_active = False
+        self.phone_duration_seconds = (
+            self.phone_min_spin.value() * 60 + self.phone_sec_spin.value()
+        )
+        self.phone_remaining_seconds = self.phone_duration_seconds
+        self.btn_start_phone.setText("Start Phone Timer (T)")
+
+        if was_alarming:
             self.lbl_phone_status.setText("○ Alarm silenced")
             self.lbl_phone_status.setStyleSheet(
                 "color: #a0a0b0; font-size: 12px; font-weight: 600; padding: 2px;"
             )
+        elif was_running:
+            self.lbl_phone_status.setText("○ Timer stopped")
+            self.lbl_phone_status.setStyleSheet(
+                "color: #a0a0b0; font-size: 12px; font-weight: 600; padding: 2px;"
+            )
+            if self.is_speaking:
+                self.lbl_status.setText("Phone timer stopped.")
+        else:
+            self.lbl_phone_status.setText("Status: Ready to start")
+
+        self._update_display()
+
+    # Backwards compatibility alias
+    silence_alarm = stop_timer_or_alarm
 
     def _on_peek_global_press(self):
         self.peek_global_active = True
