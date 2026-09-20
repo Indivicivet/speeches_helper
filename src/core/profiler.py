@@ -4,9 +4,43 @@ class SpeechProfiler:
     def __init__(self, pause_threshold_seconds=1.5):
         self.pause_threshold = pause_threshold_seconds
 
-    def analyze(self, segments, global_duration_seconds):
+    def analyze(self, segments, global_duration_seconds, phone_timer_data=None):
         """Processes segments into speech blocks, pauses, and pacing metrics."""
+        phone_timer_data = phone_timer_data or {}
+        phone_starts = phone_timer_data.get("starts", [])
+        if not phone_starts and phone_timer_data.get("start_time_seconds") is not None:
+            phone_starts = [
+                {
+                    "start_time_seconds": phone_timer_data["start_time_seconds"],
+                    "duration_seconds": phone_timer_data.get("duration_seconds", 180),
+                }
+            ]
+
         if not segments:
+            timeline_items = []
+            for entry in phone_starts:
+                st = entry.get("start_time_seconds", 0.0)
+                dur = entry.get("duration_seconds", 180.0)
+                timeline_items.append(
+                    {
+                        "type": "phone_timer_start",
+                        "start": round(st, 2),
+                        "end": round(st, 2),
+                        "duration": round(dur, 2),
+                        "label": f"Phone Timer Started ({round(dur, 0):.0f}s)",
+                    }
+                )
+                if st + dur <= global_duration_seconds:
+                    timeline_items.append(
+                        {
+                            "type": "phone_timer_alarm",
+                            "start": round(st + dur, 2),
+                            "end": round(st + dur, 2),
+                            "duration": 0.0,
+                            "label": "Phone Alarm Rang",
+                        }
+                    )
+            timeline_items.sort(key=lambda x: x["start"])
             return {
                 "effective_duration_seconds": round(global_duration_seconds, 2),
                 "last_speech_time_seconds": 0.0,
@@ -17,7 +51,8 @@ class SpeechProfiler:
                 "speaking_pace_wpm": 0.0,
                 "overall_pace_wpm": 0.0,
                 "pauses_count": 0,
-                "timeline_items": [],
+                "phone_timer_starts": phone_starts,
+                "timeline_items": timeline_items,
             }
 
         timeline_items = []
@@ -97,6 +132,32 @@ class SpeechProfiler:
             else 0.0
         )
 
+        for entry in phone_starts:
+            st = entry.get("start_time_seconds", 0.0)
+            dur = entry.get("duration_seconds", 180.0)
+            timeline_items.append(
+                {
+                    "type": "phone_timer_start",
+                    "start": round(st, 2),
+                    "end": round(st, 2),
+                    "duration": round(dur, 2),
+                    "label": f"Phone Timer Started ({round(dur, 0):.0f}s)",
+                }
+            )
+            alarm_t = st + dur
+            if alarm_t <= global_duration_seconds:
+                timeline_items.append(
+                    {
+                        "type": "phone_timer_alarm",
+                        "start": round(alarm_t, 2),
+                        "end": round(alarm_t, 2),
+                        "duration": 0.0,
+                        "label": f"Phone Alarm Rang ({round(dur, 0):.0f}s timer)",
+                    }
+                )
+
+        timeline_items.sort(key=lambda x: x["start"])
+
         return {
             "effective_duration_seconds": round(effective_duration, 2),
             "last_speech_time_seconds": round(last_speech_time, 2),
@@ -107,5 +168,6 @@ class SpeechProfiler:
             "speaking_pace_wpm": speaking_wpm,
             "overall_pace_wpm": overall_wpm,
             "pauses_count": pauses_count,
+            "phone_timer_starts": phone_starts,
             "timeline_items": timeline_items,
         }

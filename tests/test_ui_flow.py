@@ -16,7 +16,6 @@ class TestUIFlow(unittest.TestCase):
         self.window = MainWindow()
 
     def tearDown(self):
-        self.window.close()
         for f in [
             "test_session_ui_flow.json",
             "test_compare_1.json",
@@ -25,6 +24,10 @@ class TestUIFlow(unittest.TestCase):
             path = self.window.session_manager.sessions_dir / f
             if path.exists():
                 path.unlink()
+        self.window.close()
+        self.window.deleteLater()
+        self.window = None
+        app.processEvents()
 
     def test_practice_timers_and_peeks(self):
         practice = self.window.practice_view
@@ -53,6 +56,50 @@ class TestUIFlow(unittest.TestCase):
         practice._on_peek_phone_release()
         practice._update_display()
         self.assertEqual(practice.lbl_phone_timer.text(), "••:••")
+
+        # Test start phone timer visual feedback
+        practice.start_phone_timer()
+        self.assertEqual(practice.btn_start_phone.text(), "Restart Phone Timer (T)")
+        self.assertIn("RUNNING", practice.lbl_phone_status.text())
+        self.assertEqual(len(practice.phone_timer_starts), 1)
+
+        # Test starting again adds second start event
+        practice.start_phone_timer()
+        self.assertEqual(len(practice.phone_timer_starts), 2)
+
+    def test_phone_timer_during_active_speech(self):
+        import time
+
+        practice = self.window.practice_view
+        practice.start_speech()
+        self.assertTrue(practice.is_speaking)
+
+        # Start phone timer while speech is actively running
+        practice.start_phone_timer()
+        self.assertTrue(practice.phone_timer_active)
+        self.assertEqual(practice.btn_start_phone.text(), "Restart Phone Timer (T)")
+        self.assertIn("RUNNING", practice.lbl_phone_status.text())
+
+        # Simulate time passing and ticking
+        time.sleep(0.15)
+        practice._on_tick()
+        self.assertLess(
+            practice.phone_remaining_seconds, practice.phone_duration_seconds
+        )
+
+        # Stop speech and verify metadata
+        metadata = None
+
+        def record_meta(meta):
+            nonlocal metadata
+            metadata = meta
+
+        practice.speech_stopped.connect(record_meta)
+        practice.stop_speech()
+
+        self.assertIsNotNone(metadata)
+        self.assertTrue(metadata["phone_timer_used"])
+        self.assertGreater(len(metadata["phone_timer_starts"]), 0)
 
     def test_transcription_finished_populates_report(self):
         session_id = "test_session_ui_flow"
@@ -94,6 +141,7 @@ class TestUIFlow(unittest.TestCase):
         self.assertEqual(report.card_effective_time.value_label.text(), "00:09")
         self.assertEqual(report.card_words.value_label.text(), "15")
         self.assertIn("WPM", report.card_wpm.value_label.text())
+        self.assertIsNotNone(report.card_phone_timer.value_label.text())
 
     def test_compare_view_rendering(self):
         sess1 = "test_compare_1"

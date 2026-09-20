@@ -234,3 +234,8 @@ KPI_CARD_STYLE = (
     "background-color: #23232d; border: 1px solid #333342; border-radius: 8px; "
     "padding: 14px; min-width: 130px;"
 )
+
+PHONE_TIMER_CARD_STYLE = (
+    "background-color: #241c30; border: 1px solid #7e57c2; border-radius: 6px; "
+    "padding: 8px 14px;"
+)

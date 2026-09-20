@@ -69,12 +69,16 @@ class ReportView(QWidget):
         self.card_pauses = self._create_kpi_card(
             "Pauses", "0", "Deliberate breaks detected"
         )
+        self.card_phone_timer = self._create_kpi_card(
+            "Phone Timer", "--:--", "Virtual phone timer"
+        )
 
         self.kpi_layout.addWidget(self.card_total_time)
         self.kpi_layout.addWidget(self.card_effective_time)
         self.kpi_layout.addWidget(self.card_words)
         self.kpi_layout.addWidget(self.card_wpm)
         self.kpi_layout.addWidget(self.card_pauses)
+        self.kpi_layout.addWidget(self.card_phone_timer)
         layout.addLayout(self.kpi_layout)
 
         # Audio Player Bar
@@ -162,6 +166,7 @@ class ReportView(QWidget):
         vbox.addWidget(lbl_val)
         vbox.addWidget(lbl_sub)
         card.value_label = lbl_val
+        card.subtitle_label = lbl_sub
         return card
 
     def refresh_session_list(self):
@@ -213,6 +218,34 @@ class ReportView(QWidget):
         self.card_wpm.value_label.setText(f"{wpm} WPM")
         self.card_pauses.value_label.setText(f"{pauses_cnt} ({round(pause_sec, 1)}s)")
 
+        # Update phone timer card
+        pt_info = session_data.get("phone_timer") or {}
+        starts = pt_info.get("starts", [])
+        if not starts and pt_info.get("start_time_seconds") is not None:
+            starts = [
+                {
+                    "start_time_seconds": pt_info["start_time_seconds"],
+                    "duration_seconds": pt_info.get("duration_seconds", 180),
+                }
+            ]
+
+        if not starts or not pt_info.get("used", True):
+            self.card_phone_timer.value_label.setText("None")
+            self.card_phone_timer.subtitle_label.setText("Not started in speech")
+        elif len(starts) == 1:
+            st = starts[0].get("start_time_seconds", 0.0)
+            dur = starts[0].get("duration_seconds", 180)
+            self.card_phone_timer.value_label.setText(self._format_seconds(st))
+            self.card_phone_timer.subtitle_label.setText(
+                f"Start: {self._format_seconds(st)} • Alarm: {self._format_seconds(st + dur)}"
+            )
+        else:
+            self.card_phone_timer.value_label.setText(f"{len(starts)} Starts")
+            st_list = ", ".join(
+                [self._format_seconds(s.get("start_time_seconds", 0)) for s in starts]
+            )
+            self.card_phone_timer.subtitle_label.setText(f"Starts: {st_list}")
+
         # Clear existing timeline items
         while self.segments_layout.count() > 1:
             child = self.segments_layout.takeAt(0)
@@ -229,12 +262,50 @@ class ReportView(QWidget):
             return
 
         for idx, item in enumerate(timeline_items):
-            if item.get("type") == "pause":
-                pause_widget = self._create_pause_card(item)
-                self.segments_layout.insertWidget(idx, pause_widget)
+            itype = item.get("type")
+            if itype == "pause":
+                widget = self._create_pause_card(item)
+            elif itype in ("phone_timer_start", "phone_timer_alarm"):
+                widget = self._create_phone_timer_event_card(item)
             else:
-                speech_widget = self._create_speech_card(item)
-                self.segments_layout.insertWidget(idx, speech_widget)
+                widget = self._create_speech_card(item)
+            self.segments_layout.insertWidget(idx, widget)
+
+    def _create_phone_timer_event_card(self, item):
+        frame = QFrame()
+        itype = item.get("type")
+        is_start = itype == "phone_timer_start"
+
+        if is_start:
+            frame.setStyleSheet(
+                "background-color: #241c30; border: 1px solid #7e57c2; border-radius: 6px; padding: 8px 14px;"
+            )
+            lbl_color = "#ce93d8"
+            icon = "📱"
+        else:
+            frame.setStyleSheet(
+                "background-color: #38241b; border: 1px solid #f57c00; border-radius: 6px; padding: 8px 14px;"
+            )
+            lbl_color = "#ffb74d"
+            icon = "🔔"
+
+        layout = QHBoxLayout(frame)
+        layout.setContentsMargins(4, 4, 4, 4)
+
+        start = item.get("start", 0.0)
+        label_text = item.get("label", "Phone Timer Event")
+        lbl_text = QLabel(f"{icon} {label_text} at {self._format_seconds(start)}")
+        lbl_text.setStyleSheet(
+            f"color: {lbl_color}; font-weight: 600; font-size: 13px;"
+        )
+
+        btn_jump = QPushButton("Play Here")
+        btn_jump.setFixedWidth(90)
+        btn_jump.clicked.connect(lambda: self.player.seek(int(start * 1000)))
+
+        layout.addWidget(lbl_text, 1)
+        layout.addWidget(btn_jump)
+        return frame
 
     def _create_pause_card(self, item):
         frame = QFrame()

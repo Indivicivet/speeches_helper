@@ -104,6 +104,7 @@ class MainWindow(QMainWindow):
             phone_timer_used=metadata["phone_timer_used"],
             phone_timer_duration=metadata["phone_timer_duration"],
             phone_timer_start_time=metadata["phone_timer_start_time"],
+            phone_timer_starts=metadata.get("phone_timer_starts", []),
             peek_events=metadata["peek_events"],
         )
 
@@ -115,6 +116,13 @@ class MainWindow(QMainWindow):
             f"Transcribing speech with '{model_name}'...", in_progress=True
         )
 
+        phone_timer_data = {
+            "used": metadata["phone_timer_used"],
+            "duration_seconds": metadata["phone_timer_duration"],
+            "start_time_seconds": metadata["phone_timer_start_time"],
+            "starts": metadata.get("phone_timer_starts", []),
+        }
+
         self.transcriber_thread = TranscriberThread(
             audio_path=mp3_path, model_name=model_name
         )
@@ -124,11 +132,12 @@ class MainWindow(QMainWindow):
             )
         )
         self.transcriber_thread.finished.connect(
-            lambda res: self._on_transcription_finished(
+            lambda res, pt=phone_timer_data: self._on_transcription_finished(
                 session_id,
                 res,
                 metadata["global_duration_seconds"],
                 pause_thresh,
+                phone_timer_data=pt,
             )
         )
         self.transcriber_thread.failed.connect(
@@ -137,12 +146,18 @@ class MainWindow(QMainWindow):
         self.transcriber_thread.start()
 
     def _on_transcription_finished(
-        self, session_id, trans_result, global_duration, pause_threshold
+        self,
+        session_id,
+        trans_result,
+        global_duration,
+        pause_threshold,
+        phone_timer_data=None,
     ):
         profiler = SpeechProfiler(pause_threshold_seconds=pause_threshold)
         profile_data = profiler.analyze(
             segments=trans_result.get("segments", []),
             global_duration_seconds=global_duration,
+            phone_timer_data=phone_timer_data,
         )
 
         # Update session file with full profile and transcription

@@ -27,6 +27,7 @@ class SessionManager:
         phone_timer_used=False,
         phone_timer_duration=180,
         phone_timer_start_time=None,
+        phone_timer_starts=None,
         peek_events=None,
     ):
         """Immediately persists initial session metadata before transcription."""
@@ -44,6 +45,7 @@ class SessionManager:
                     if phone_timer_start_time is not None
                     else None
                 ),
+                "starts": phone_timer_starts or [],
             },
             "peek_events": peek_events or [],
             "transcription": None,

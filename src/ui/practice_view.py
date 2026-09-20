@@ -1,5 +1,6 @@
 import time
 from PySide6.QtCore import QTime, QTimer, Qt, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -35,6 +36,7 @@ class PracticeView(QWidget):
         self.phone_timer_start_time = None
         self.phone_duration_seconds = 180
         self.phone_remaining_seconds = 180
+        self.phone_timer_starts = []
 
         self.peek_global_active = False
         self.peek_phone_active = False
@@ -145,8 +147,15 @@ class PracticeView(QWidget):
         self.btn_peek_phone.pressed.connect(self._on_peek_phone_press)
         self.btn_peek_phone.released.connect(self._on_peek_phone_release)
 
+        self.lbl_phone_status = QLabel("Status: Ready to start")
+        self.lbl_phone_status.setAlignment(Qt.AlignCenter)
+        self.lbl_phone_status.setStyleSheet(
+            "color: #a0a0b0; font-size: 12px; font-weight: 600; padding: 2px;"
+        )
+
         phone_vbox.addLayout(phone_header)
         phone_vbox.addWidget(self.lbl_phone_timer)
+        phone_vbox.addWidget(self.lbl_phone_status)
         phone_vbox.addLayout(phone_btn_row)
         phone_vbox.addWidget(self.btn_peek_phone)
 
@@ -165,9 +174,23 @@ class PracticeView(QWidget):
         mic_layout.addWidget(self.mic_bar)
         main_layout.addLayout(mic_layout)
 
+        self.btn_peek_global.setFocusPolicy(Qt.NoFocus)
+        self.btn_start_phone.setFocusPolicy(Qt.NoFocus)
+        self.btn_stop_alarm.setFocusPolicy(Qt.NoFocus)
+        self.btn_peek_phone.setFocusPolicy(Qt.NoFocus)
+        self.chk_hide_global.setFocusPolicy(Qt.NoFocus)
+        self.chk_hide_phone.setFocusPolicy(Qt.NoFocus)
+
+        # Rehearsal shortcuts that trigger regardless of focused widget
+        QShortcut(QKeySequence(Qt.Key_T), self, self.start_phone_timer)
+        QShortcut(QKeySequence(Qt.Key_S), self, self.silence_alarm)
+        QShortcut(QKeySequence(Qt.Key_Space), self, self.toggle_speech)
+        QShortcut(QKeySequence(Qt.Key_Return), self, self.toggle_speech)
+
         # Primary Control Button
         self.btn_toggle_speech = QPushButton("Begin Speech (Space / Enter)")
         self.btn_toggle_speech.setObjectName("btn_record_start")
+        self.btn_toggle_speech.setFocusPolicy(Qt.NoFocus)
         self.btn_toggle_speech.clicked.connect(self.toggle_speech)
         main_layout.addWidget(self.btn_toggle_speech)
 
@@ -230,25 +253,77 @@ class PracticeView(QWidget):
                 if not self.beeper.is_alarming():
                     self.beeper.start_alarm()
                     self.btn_stop_alarm.setEnabled(True)
+                self.lbl_phone_status.setText("🔔 ALARM RINGING! Press Stop Alarm (S)")
+                self.lbl_phone_status.setStyleSheet(
+                    "color: #ff5252; font-size: 12px; font-weight: 700; padding: 2px;"
+                )
+            else:
+                last_start = (
+                    self.phone_timer_starts[-1]["start_time_seconds"]
+                    if self.phone_timer_starts
+                    else 0.0
+                )
+                self.lbl_phone_status.setText(
+                    f"● RUNNING (Started at {self._format_time(last_start)})"
+                )
+                self.lbl_phone_status.setStyleSheet(
+                    "color: #ffd54f; font-size: 12px; font-weight: 700; padding: 2px;"
+                )
 
         self._update_display()
 
     def start_phone_timer(self):
-        if not self.is_speaking:
-            self.lbl_status.setText(
-                "Tip: Start the speech first before launching the phone timer."
-            )
         self.phone_duration_seconds = (
             self.phone_min_spin.value() * 60 + self.phone_sec_spin.value()
         )
         self.phone_remaining_seconds = self.phone_duration_seconds
         self.phone_timer_start_time = time.time()
         self.phone_timer_active = True
+
+        current_offset = (
+            round(time.time() - self.global_start_time, 2)
+            if self.is_speaking and self.global_start_time
+            else 0.0
+        )
+        self.phone_timer_starts.append(
+            {
+                "start_time_seconds": current_offset,
+                "duration_seconds": self.phone_duration_seconds,
+                "alarm_time_seconds": round(
+                    current_offset + self.phone_duration_seconds, 2
+                ),
+            }
+        )
+
+        if not self.tick_timer.isActive():
+            self.tick_timer.start()
+
+        self.btn_start_phone.setText("Restart Phone Timer (T)")
+        self.lbl_phone_status.setText(
+            f"● RUNNING (Started at {self._format_time(current_offset)})"
+        )
+        self.lbl_phone_status.setStyleSheet(
+            "color: #ffd54f; font-size: 12px; font-weight: 700; padding: 2px;"
+        )
+
+        if not self.is_speaking:
+            self.lbl_status.setText(
+                "Phone timer active. Press Begin Speech when you want to start talking."
+            )
+        else:
+            self.lbl_status.setText(
+                f"Phone timer running ({self._format_time(self.phone_duration_seconds)} countdown)."
+            )
         self._update_display()
 
     def silence_alarm(self):
         self.beeper.stop_alarm()
         self.btn_stop_alarm.setEnabled(False)
+        if self.phone_timer_active and self.phone_remaining_seconds <= 0.0:
+            self.lbl_phone_status.setText("○ Alarm silenced")
+            self.lbl_phone_status.setStyleSheet(
+                "color: #a0a0b0; font-size: 12px; font-weight: 600; padding: 2px;"
+            )
 
     def _on_peek_global_press(self):
         self.peek_global_active = True
@@ -290,7 +365,14 @@ class PracticeView(QWidget):
             self.phone_min_spin.value() * 60 + self.phone_sec_spin.value()
         )
         self.phone_remaining_seconds = self.phone_duration_seconds
+        self.phone_timer_starts = []
         self.peek_events = []
+
+        self.btn_start_phone.setText("Start Phone Timer (T)")
+        self.lbl_phone_status.setText("Status: Ready to start")
+        self.lbl_phone_status.setStyleSheet(
+            "color: #a0a0b0; font-size: 12px; font-weight: 600; padding: 2px;"
+        )
 
         self.silence_alarm()
         self.tick_timer.start()
@@ -318,17 +400,16 @@ class PracticeView(QWidget):
             "Speech recorded. Saving audio and preparing transcription..."
         )
 
-        phone_offset = (
-            self.phone_timer_start_time - self.global_start_time
-            if self.phone_timer_start_time and self.global_start_time
-            else None
-        )
-
         metadata = {
             "global_duration_seconds": self.global_elapsed_seconds,
-            "phone_timer_used": self.phone_timer_active,
+            "phone_timer_used": len(self.phone_timer_starts) > 0,
             "phone_timer_duration": self.phone_duration_seconds,
-            "phone_timer_start_time": phone_offset,
+            "phone_timer_start_time": (
+                self.phone_timer_starts[0]["start_time_seconds"]
+                if self.phone_timer_starts
+                else None
+            ),
+            "phone_timer_starts": self.phone_timer_starts,
             "peek_events": self.peek_events,
             "model_name": self.model_combo.currentText().strip(),
             "pause_threshold": self.pause_spin.value(),
