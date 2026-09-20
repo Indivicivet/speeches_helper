@@ -116,37 +116,37 @@ QPushButton#btn_peek:pressed {
 
 QLabel#timer_display {
     font-family: "Consolas", "Courier New", monospace;
-    font-size: 56px;
+    font-size: 44px;
     font-weight: 700;
     color: #00e676;
     background-color: #16161b;
     border: 1px solid #2d2d38;
     border-radius: 8px;
-    padding: 12px 24px;
+    padding: 8px 16px;
     qproperty-alignment: AlignCenter;
 }
 
 QLabel#phone_timer_display {
     font-family: "Consolas", "Courier New", monospace;
-    font-size: 56px;
+    font-size: 44px;
     font-weight: 700;
     color: #ffb74d;
     background-color: #16161b;
     border: 1px solid #2d2d38;
     border-radius: 8px;
-    padding: 12px 24px;
+    padding: 8px 16px;
     qproperty-alignment: AlignCenter;
 }
 
 QLabel#timer_display_hidden {
     font-family: "Consolas", "Courier New", monospace;
-    font-size: 48px;
+    font-size: 38px;
     font-weight: 700;
     color: #616170;
     background-color: #141418;
     border: 1px dashed #30303c;
     border-radius: 8px;
-    padding: 16px 24px;
+    padding: 12px 16px;
     qproperty-alignment: AlignCenter;
 }
 
@@ -232,7 +232,7 @@ SPEECH_CARD_STYLE = (
 
 KPI_CARD_STYLE = (
     "background-color: #23232d; border: 1px solid #333342; border-radius: 8px; "
-    "padding: 14px; min-width: 130px;"
+    "padding: 10px 8px; min-width: 80px;"
 )
 
 PHONE_TIMER_CARD_STYLE = (

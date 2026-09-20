@@ -64,6 +64,41 @@ class TestSpeechProfiler(unittest.TestCase):
         starts = [item["start"] for item in result["timeline_items"]]
         self.assertEqual(starts, sorted(starts))
 
+    def test_phone_timer_splits_speech_block_inline(self):
+        segments = [
+            {
+                "start": 1.0,
+                "end": 6.0,
+                "text": "I was talking and then timer",
+                "words": [
+                    {"word": "I", "start": 1.0, "end": 1.4},
+                    {"word": "was", "start": 1.5, "end": 2.0},
+                    {"word": "talking", "start": 2.1, "end": 3.0},
+                    {"word": "and", "start": 4.0, "end": 4.4},
+                    {"word": "then", "start": 4.5, "end": 5.0},
+                    {"word": "timer", "start": 5.1, "end": 6.0},
+                ],
+            }
+        ]
+        phone_data = {
+            "starts": [{"start_time_seconds": 3.5, "duration_seconds": 180.0}]
+        }
+        result = self.profiler.analyze(
+            segments=segments,
+            global_duration_seconds=10.0,
+            phone_timer_data=phone_data,
+        )
+
+        items = result["timeline_items"]
+        # Expected sequence: speech (I was talking) -> phone_timer_start -> speech (and then timer)
+        self.assertEqual(len(items), 3)
+        self.assertEqual(items[0]["type"], "speech")
+        self.assertIn("talking", items[0]["text"])
+        self.assertEqual(items[1]["type"], "phone_timer_start")
+        self.assertEqual(items[1]["start"], 3.5)
+        self.assertEqual(items[2]["type"], "speech")
+        self.assertIn("timer", items[2]["text"])
+
 
 if __name__ == "__main__":
     unittest.main()

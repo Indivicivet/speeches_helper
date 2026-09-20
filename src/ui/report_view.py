@@ -52,26 +52,14 @@ class ReportView(QWidget):
 
         # KPI Cards Row
         self.kpi_layout = QHBoxLayout()
-        self.kpi_layout.setSpacing(12)
+        self.kpi_layout.setSpacing(10)
 
-        self.card_total_time = self._create_kpi_card(
-            "Total Time", "--:--", "Elapsed recording"
-        )
-        self.card_effective_time = self._create_kpi_card(
-            "Effective Speech", "--:--", "Up to last spoken word"
-        )
-        self.card_words = self._create_kpi_card(
-            "Word Count", "0", "Total words transcribed"
-        )
-        self.card_wpm = self._create_kpi_card(
-            "Speaking Pace", "0 WPM", "Words per speaking minute"
-        )
-        self.card_pauses = self._create_kpi_card(
-            "Pauses", "0", "Deliberate breaks detected"
-        )
-        self.card_phone_timer = self._create_kpi_card(
-            "Phone Timer", "--:--", "Virtual phone timer"
-        )
+        self.card_total_time = self._create_kpi_card("Total Time", "--:--")
+        self.card_effective_time = self._create_kpi_card("Effective Speech", "--:--")
+        self.card_words = self._create_kpi_card("Word Count", "0")
+        self.card_wpm = self._create_kpi_card("Speaking Pace", "0 WPM")
+        self.card_pauses = self._create_kpi_card("Pauses", "0")
+        self.card_phone_timer = self._create_kpi_card("Phone Timer", "--:--")
 
         self.kpi_layout.addWidget(self.card_total_time)
         self.kpi_layout.addWidget(self.card_effective_time)
@@ -142,7 +130,7 @@ class ReportView(QWidget):
         self.player.duration_changed.connect(self._on_player_duration_changed)
         self.player.state_changed.connect(self._on_playback_state_changed)
 
-    def _create_kpi_card(self, title, default_val, subtitle):
+    def _create_kpi_card(self, title, default_val):
         card = QFrame()
         card.setStyleSheet(KPI_CARD_STYLE)
         vbox = QVBoxLayout(card)
@@ -156,17 +144,12 @@ class ReportView(QWidget):
 
         lbl_val = QLabel(default_val)
         lbl_val.setStyleSheet(
-            "color: #4daafc; font-size: 20px; font-weight: 700; font-family: monospace;"
+            "color: #4daafc; font-size: 18px; font-weight: 700; font-family: monospace;"
         )
-
-        lbl_sub = QLabel(subtitle)
-        lbl_sub.setStyleSheet("color: #6a6a7c; font-size: 10px;")
 
         vbox.addWidget(lbl_title)
         vbox.addWidget(lbl_val)
-        vbox.addWidget(lbl_sub)
         card.value_label = lbl_val
-        card.subtitle_label = lbl_sub
         return card
 
     def refresh_session_list(self):
@@ -231,20 +214,13 @@ class ReportView(QWidget):
 
         if not starts or not pt_info.get("used", True):
             self.card_phone_timer.value_label.setText("None")
-            self.card_phone_timer.subtitle_label.setText("Not started in speech")
-        elif len(starts) == 1:
-            st = starts[0].get("start_time_seconds", 0.0)
-            dur = starts[0].get("duration_seconds", 180)
-            self.card_phone_timer.value_label.setText(self._format_seconds(st))
-            self.card_phone_timer.subtitle_label.setText(
-                f"Start: {self._format_seconds(st)} • Alarm: {self._format_seconds(st + dur)}"
-            )
-        else:
-            self.card_phone_timer.value_label.setText(f"{len(starts)} Starts")
+        elif len(starts) <= 2:
             st_list = ", ".join(
                 [self._format_seconds(s.get("start_time_seconds", 0)) for s in starts]
             )
-            self.card_phone_timer.subtitle_label.setText(f"Starts: {st_list}")
+            self.card_phone_timer.value_label.setText(st_list)
+        else:
+            self.card_phone_timer.value_label.setText(f"{len(starts)} starts")
 
         # Clear existing timeline items
         while self.segments_layout.count() > 1:

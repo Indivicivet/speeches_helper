@@ -24,7 +24,8 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Speeches Helper — Speech & Blind Timer Practice")
-        self.resize(1080, 800)
+        self.setMinimumSize(850, 520)
+        self.resize(920, 720)
 
         self.session_manager = SessionManager("sessions")
         self.beeper = PhoneBeeper()
