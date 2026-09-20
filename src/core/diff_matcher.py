@@ -67,19 +67,61 @@ class FuzzyDiffMatcher:
             self.calculate_text_similarity(full_text_a, full_text_b), 2
         )
 
+        aligned_pairs = self.align_segments(items_a, items_b)
+        return {"metrics": metrics, "aligned_pairs": aligned_pairs}
+
+    def align_segments(self, items_a, items_b, gap_penalty=-0.4):
+        """Aligns speech segments using Needleman-Wunsch global alignment with gaps."""
+        n, m = len(items_a), len(items_b)
+        if n == 0 and m == 0:
+            return []
+
+        # DP score matrix
+        dp = [[0.0] * (m + 1) for _ in range(n + 1)]
+        for i in range(1, n + 1):
+            dp[i][0] = i * gap_penalty
+        for j in range(1, m + 1):
+            dp[0][j] = j * gap_penalty
+
+        # Fill DP matrix
+        for i in range(1, n + 1):
+            text_a = items_a[i - 1].get("text", "")
+            for j in range(1, m + 1):
+                text_b = items_b[j - 1].get("text", "")
+                sim = self.calculate_text_similarity(text_a, text_b)
+                score = 2.5 * sim - 1.0
+                dp[i][j] = max(
+                    dp[i - 1][j - 1] + score,
+                    dp[i - 1][j] + gap_penalty,
+                    dp[i][j - 1] + gap_penalty,
+                )
+
+        # Backtrack to reconstruct optimal alignment sequence with gaps
+        raw_pairs = []
+        i, j = n, m
+        while i > 0 or j > 0:
+            if i > 0 and j > 0:
+                text_a = items_a[i - 1].get("text", "")
+                text_b = items_b[j - 1].get("text", "")
+                sim = self.calculate_text_similarity(text_a, text_b)
+                score = 2.5 * sim - 1.0
+                if abs(dp[i][j] - (dp[i - 1][j - 1] + score)) < 1e-5:
+                    raw_pairs.append((items_a[i - 1], items_b[j - 1], sim))
+                    i -= 1
+                    j -= 1
+                    continue
+            if i > 0 and abs(dp[i][j] - (dp[i - 1][j] + gap_penalty)) < 1e-5:
+                raw_pairs.append((items_a[i - 1], None, 0.0))
+                i -= 1
+            else:
+                raw_pairs.append((None, items_b[j - 1], 0.0))
+                j -= 1
+
+        raw_pairs.reverse()
+
         aligned_pairs = []
-        max_len = max(len(items_a), len(items_b))
-
-        # Align segments sequentially, pairing them up
-        for i in range(max_len):
-            item_a = items_a[i] if i < len(items_a) else None
-            item_b = items_b[i] if i < len(items_b) else None
-
-            text_a = item_a.get("text", "") if item_a else ""
-            text_b = item_b.get("text", "") if item_b else ""
-
-            sim = self.calculate_text_similarity(text_a, text_b)
-            if not text_a or not text_b:
+        for idx, (item_a, item_b, sim) in enumerate(raw_pairs, start=1):
+            if not item_a or not item_b:
                 status = "missing"
             elif sim >= self.similar_threshold:
                 status = "similar"
@@ -90,7 +132,7 @@ class FuzzyDiffMatcher:
 
             aligned_pairs.append(
                 {
-                    "index": i + 1,
+                    "index": idx,
                     "item_a": item_a,
                     "item_b": item_b,
                     "similarity": round(sim, 2),
@@ -98,4 +140,4 @@ class FuzzyDiffMatcher:
                 }
             )
 
-        return {"metrics": metrics, "aligned_pairs": aligned_pairs}
+        return aligned_pairs

@@ -79,6 +79,47 @@ class TestFuzzyDiffMatcher(unittest.TestCase):
         self.assertEqual(len(aligned_pairs), 1)
         self.assertEqual(aligned_pairs[0]["status"], "similar")
 
+    def test_align_segments_with_inserted_tangent_resync(self):
+        items_a = [
+            {"text": "Welcome everyone to our annual presentation."},
+            {"text": "Today we discuss our quarterly financial results."},
+            {"text": "Thank you all for your time and attention."},
+        ]
+        # Speech B has an inserted tangent at position 1
+        items_b = [
+            {"text": "Welcome everyone to our annual presentation."},
+            {"text": "Before starting, here is a quick funny story."},
+            {"text": "Today we discuss our quarterly financial results."},
+            {"text": "Thank you all for your time and attention."},
+        ]
+
+        pairs = self.matcher.align_segments(items_a, items_b)
+
+        # Should produce 4 rows: 1 matched, 1 gap on A's side, 2 matched
+        self.assertEqual(len(pairs), 4)
+
+        # Row 0: matched welcome
+        self.assertIsNotNone(pairs[0]["item_a"])
+        self.assertIsNotNone(pairs[0]["item_b"])
+        self.assertEqual(pairs[0]["status"], "similar")
+
+        # Row 1: gap on A, inserted tangent on B
+        self.assertIsNone(pairs[1]["item_a"])
+        self.assertIsNotNone(pairs[1]["item_b"])
+        self.assertEqual(pairs[1]["status"], "missing")
+        self.assertIn("funny story", pairs[1]["item_b"]["text"])
+
+        # Row 2: successfully resynced on financial results
+        self.assertIsNotNone(pairs[2]["item_a"])
+        self.assertIsNotNone(pairs[2]["item_b"])
+        self.assertEqual(pairs[2]["status"], "similar")
+        self.assertIn("financial results", pairs[2]["item_a"]["text"])
+
+        # Row 3: successfully resynced on thank you
+        self.assertIsNotNone(pairs[3]["item_a"])
+        self.assertIsNotNone(pairs[3]["item_b"])
+        self.assertEqual(pairs[3]["status"], "similar")
+
 
 if __name__ == "__main__":
     unittest.main()
