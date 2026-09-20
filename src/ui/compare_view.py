@@ -56,6 +56,16 @@ class CompareView(QWidget):
         top_bar.addStretch(1)
         layout.addLayout(top_bar)
 
+        # Single Scroll Area containing Metrics, Legend, and Side-by-Side Segments
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("border: none; background: transparent;")
+
+        self.scroll_content = QWidget()
+        self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(4, 4, 4, 4)
+        self.scroll_layout.setSpacing(14)
+
         # Comparative Summary Grid
         self.metrics_frame = QFrame()
         self.metrics_frame.setStyleSheet(
@@ -64,7 +74,7 @@ class CompareView(QWidget):
         self.metrics_layout = QGridLayout(self.metrics_frame)
         self.metrics_layout.setContentsMargins(8, 8, 8, 8)
         self.metrics_layout.setSpacing(8)
-        layout.addWidget(self.metrics_frame)
+        self.scroll_layout.addWidget(self.metrics_frame)
 
         # Legend
         legend_layout = QHBoxLayout()
@@ -85,24 +95,27 @@ class CompareView(QWidget):
             "background-color: #3b1e22; color: #ef9a9a; border-radius: 4px; padding: 2px 6px;"
         )
 
+        lbl_leg_gap = QLabel(" Gap / Inserted ")
+        lbl_leg_gap.setStyleSheet(
+            "background-color: #24242e; border: 1px dashed #48485a; color: #a0a0b0; border-radius: 4px; padding: 2px 6px;"
+        )
+
         legend_layout.addWidget(lbl_leg_sim)
         legend_layout.addWidget(lbl_leg_mod)
         legend_layout.addWidget(lbl_leg_diff)
+        legend_layout.addWidget(lbl_leg_gap)
         legend_layout.addStretch(1)
-        layout.addLayout(legend_layout)
+        self.scroll_layout.addLayout(legend_layout)
 
-        # Side-by-Side Dual-Column Scroll Area
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.setStyleSheet("border: none; background: transparent;")
-
+        # Side-by-Side Dual-Column Segments
         self.diff_container = QWidget()
         self.diff_layout = QVBoxLayout(self.diff_container)
-        self.diff_layout.setContentsMargins(4, 4, 4, 4)
+        self.diff_layout.setContentsMargins(0, 0, 0, 0)
         self.diff_layout.setSpacing(10)
         self.diff_layout.addStretch(1)
+        self.scroll_layout.addWidget(self.diff_container)
 
-        self.scroll_area.setWidget(self.diff_container)
+        self.scroll_area.setWidget(self.scroll_content)
         layout.addWidget(self.scroll_area, 1)
 
     def refresh_session_lists(self):
@@ -171,10 +184,16 @@ class CompareView(QWidget):
                 f"{'+' if metrics['words_delta'] > 0 else ''}{metrics['words_delta']}",
             ),
             (
-                "Speaking Pace",
-                f"{metrics['wpm_a']} WPM",
-                f"{metrics['wpm_b']} WPM",
-                f"{'+' if metrics['wpm_delta'] > 0 else ''}{metrics['wpm_delta']} WPM",
+                "Overall WPM (Total Time)",
+                f"{metrics.get('overall_wpm_a', metrics['wpm_a'])} WPM",
+                f"{metrics.get('overall_wpm_b', metrics['wpm_b'])} WPM",
+                f"{'+' if metrics.get('overall_wpm_delta', 0) > 0 else ''}{metrics.get('overall_wpm_delta', 0)} WPM",
+            ),
+            (
+                "Segment WPM (Excl. Pauses)",
+                f"{metrics.get('speaking_wpm_a', metrics['wpm_a'])} WPM",
+                f"{metrics.get('speaking_wpm_b', metrics['wpm_b'])} WPM",
+                f"{'+' if metrics.get('speaking_wpm_delta', metrics['wpm_delta']) > 0 else ''}{metrics.get('speaking_wpm_delta', metrics['wpm_delta'])} WPM",
             ),
             (
                 "Pauses Count",

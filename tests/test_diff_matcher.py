@@ -74,6 +74,9 @@ class TestFuzzyDiffMatcher(unittest.TestCase):
         self.assertEqual(metrics["duration_delta"], 10.0)
         self.assertEqual(metrics["words_delta"], 10)
         self.assertEqual(metrics["pauses_delta"], 2)
+        self.assertIn("overall_wpm_a", metrics)
+        self.assertIn("speaking_wpm_a", metrics)
+        self.assertEqual(metrics["speaking_wpm_delta"], -3.0)
 
         aligned_pairs = result["aligned_pairs"]
         self.assertEqual(len(aligned_pairs), 1)

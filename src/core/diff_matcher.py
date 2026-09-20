@@ -23,26 +23,50 @@ class FuzzyDiffMatcher:
         prof_a = session_a.get("profile") or {}
         prof_b = session_b.get("profile") or {}
 
+        speaking_wpm_a = prof_a.get("speaking_pace_wpm", 0.0)
+        speaking_wpm_b = prof_b.get("speaking_pace_wpm", 0.0)
+
+        # Overall WPM based on total effective duration
+        dur_a = prof_a.get("effective_duration_seconds", 0.0)
+        dur_b = prof_b.get("effective_duration_seconds", 0.0)
+        overall_wpm_a = prof_a.get(
+            "overall_pace_wpm",
+            (
+                round(prof_a.get("total_words", 0) / (dur_a / 60.0), 1)
+                if dur_a > 0
+                else speaking_wpm_a
+            ),
+        )
+        overall_wpm_b = prof_b.get(
+            "overall_pace_wpm",
+            (
+                round(prof_b.get("total_words", 0) / (dur_b / 60.0), 1)
+                if dur_b > 0
+                else speaking_wpm_b
+            ),
+        )
+
         metrics = {
             "session_a_id": session_a.get("session_id", "Session A"),
             "session_b_id": session_b.get("session_id", "Session B"),
-            "duration_a": prof_a.get("effective_duration_seconds", 0.0),
-            "duration_b": prof_b.get("effective_duration_seconds", 0.0),
-            "duration_delta": round(
-                prof_b.get("effective_duration_seconds", 0.0)
-                - prof_a.get("effective_duration_seconds", 0.0),
-                2,
-            ),
+            "duration_a": dur_a,
+            "duration_b": dur_b,
+            "duration_delta": round(dur_b - dur_a, 2),
             "words_a": prof_a.get("total_words", 0),
             "words_b": prof_b.get("total_words", 0),
             "words_delta": prof_b.get("total_words", 0) - prof_a.get("total_words", 0),
-            "wpm_a": prof_a.get("speaking_pace_wpm", 0.0),
-            "wpm_b": prof_b.get("speaking_pace_wpm", 0.0),
-            "wpm_delta": round(
-                prof_b.get("speaking_pace_wpm", 0.0)
-                - prof_a.get("speaking_pace_wpm", 0.0),
-                1,
-            ),
+            # Legacy/default speaking pace
+            "wpm_a": speaking_wpm_a,
+            "wpm_b": speaking_wpm_b,
+            "wpm_delta": round(speaking_wpm_b - speaking_wpm_a, 1),
+            # Segment WPM (excluding pauses)
+            "speaking_wpm_a": speaking_wpm_a,
+            "speaking_wpm_b": speaking_wpm_b,
+            "speaking_wpm_delta": round(speaking_wpm_b - speaking_wpm_a, 1),
+            # Overall WPM (including pauses / total duration)
+            "overall_wpm_a": overall_wpm_a,
+            "overall_wpm_b": overall_wpm_b,
+            "overall_wpm_delta": round(overall_wpm_b - overall_wpm_a, 1),
             "pauses_a": prof_a.get("pauses_count", 0),
             "pauses_b": prof_b.get("pauses_count", 0),
             "pauses_delta": prof_b.get("pauses_count", 0)
