@@ -17,21 +17,41 @@ class AudioRecorder(QObject):
 
     level_changed = Signal(float)  # 0.0 to 1.0 for audio level indicator
 
-    def __init__(self, sample_rate=16000, channels=1):
+    def __init__(self, sample_rate=16000, channels=1, gain_db=10.0):
         super().__init__()
         self.sample_rate = sample_rate
         self.channels = channels
+        self.gain_db = float(gain_db)
         self.is_recording = False
         self._stream = None
         self._chunks = []
 
+    def set_gain_db(self, gain_db):
+        """Set software recording gain in dB."""
+        self.gain_db = float(gain_db)
+
     def _audio_callback(self, indata, frames, time_info, status):
         if not self.is_recording:
             return
-        self._chunks.append(indata.copy())
-        # Calculate approximate RMS volume level for UI feedback
-        rms = float(np.sqrt(np.mean(indata**2))) if len(indata) > 0 else 0.0
-        self.level_changed.emit(min(1.0, rms * 5.0))
+
+        # Apply software gain in dB (+10 dB default = ~3.16x amplitude)
+        if self.gain_db != 0.0:
+            multiplier = 10.0 ** (self.gain_db / 20.0)
+            boosted = np.clip(
+                indata.astype(np.float32) * multiplier, -32768, 32767
+            ).astype(np.int16)
+        else:
+            boosted = indata.copy()
+
+        self._chunks.append(boosted)
+
+        # Calculate approximate RMS volume level for UI feedback (0.0 to 1.0)
+        rms = (
+            float(np.sqrt(np.mean(boosted.astype(np.float32) ** 2)))
+            if len(boosted) > 0
+            else 0.0
+        )
+        self.level_changed.emit(min(1.0, (rms / 32767.0) * 12.0))
 
     def start(self):
         """Starts recording audio from default input device."""

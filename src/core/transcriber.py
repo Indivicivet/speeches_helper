@@ -11,13 +11,19 @@ class TranscriberThread(QThread):
     failed = Signal(str)
 
     def __init__(
-        self, audio_path, model_name="medium.en", device="cpu", compute_type="int8"
+        self,
+        audio_path,
+        model_name="medium.en",
+        device="cpu",
+        compute_type="int8",
+        vad_threshold=0.30,
     ):
         super().__init__()
         self.audio_path = str(audio_path)
         self.model_name = model_name
         self.device = device
         self.compute_type = compute_type
+        self.vad_threshold = vad_threshold
 
     def run(self):
         try:
@@ -43,6 +49,7 @@ class TranscriberThread(QThread):
                 beam_size=5,
                 word_timestamps=True,
                 vad_filter=True,
+                vad_parameters=dict(threshold=self.vad_threshold),
             )
 
             segments = []
