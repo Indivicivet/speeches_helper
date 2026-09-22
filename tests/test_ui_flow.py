@@ -188,6 +188,33 @@ class TestUIFlow(unittest.TestCase):
         # Verify metrics table has been populated
         self.assertGreater(compare.metrics_layout.count(), 4)
 
+    def test_audio_warning_banners(self):
+        practice = self.window.practice_view
+        self.assertTrue(practice.audio_warning_banner.isHidden())
+        practice.show_audio_warning()
+        self.assertFalse(practice.audio_warning_banner.isHidden())
+        practice.clear_audio_warning()
+        self.assertTrue(practice.audio_warning_banner.isHidden())
+
+        report = self.window.report_view
+        sess_no_audio = {
+            "session_id": "test_no_audio",
+            "global_duration_seconds": 10.0,
+            "has_initial_audio": False,
+            "profile": {},
+        }
+        report.display_session(sess_no_audio)
+        self.assertFalse(report.warning_banner.isHidden())
+
+        sess_with_audio = {
+            "session_id": "test_with_audio",
+            "global_duration_seconds": 10.0,
+            "has_initial_audio": True,
+            "profile": {},
+        }
+        report.display_session(sess_with_audio)
+        self.assertTrue(report.warning_banner.isHidden())
+
 
 if __name__ == "__main__":
     unittest.main()

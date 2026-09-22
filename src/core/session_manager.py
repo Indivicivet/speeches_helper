@@ -37,6 +37,7 @@ class SessionManager:
         phone_timer_start_time=None,
         phone_timer_starts=None,
         peek_events=None,
+        has_initial_audio=None,
     ):
         """Immediately persists initial session metadata before transcription."""
         payload = {
@@ -59,13 +60,15 @@ class SessionManager:
             "transcription": None,
             "profile": None,
         }
+        if has_initial_audio is not None:
+            payload["has_initial_audio"] = bool(has_initial_audio)
         json_path = self.get_json_path(session_id)
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
         return payload
 
     def update_transcription_and_profile(
-        self, session_id, transcription_data, profile_data
+        self, session_id, transcription_data, profile_data, has_initial_audio=None
     ):
         """Updates an existing session record with transcription and profile analysis."""
         json_path = self.get_json_path(session_id)
@@ -78,6 +81,8 @@ class SessionManager:
         data["status"] = "processed"
         data["transcription"] = transcription_data
         data["profile"] = profile_data
+        if has_initial_audio is not None:
+            data["has_initial_audio"] = bool(has_initial_audio)
 
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)

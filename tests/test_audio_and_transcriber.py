@@ -33,6 +33,34 @@ class TestAudioAndTranscriber(unittest.TestCase):
         thread = TranscriberThread("dummy.mp3", vad_threshold=0.30)
         self.assertEqual(thread.vad_threshold, 0.30)
 
+    def test_recorder_initial_audio_detection(self):
+        rec = AudioRecorder(sample_rate=16000, gain_db=0.0)
+        rec.is_recording = True
+
+        warnings_received = []
+        rec.initial_audio_missing.connect(lambda: warnings_received.append(True))
+
+        # Feed 5 seconds of near-zero silence
+        silent_chunk = np.zeros((16000, 1), dtype=np.int16)
+        for _ in range(5):
+            rec._audio_callback(silent_chunk, 16000, None, None)
+
+        self.assertFalse(rec.has_initial_audio())
+        self.assertEqual(len(warnings_received), 1)
+
+        # New recording with audio
+        rec2 = AudioRecorder(sample_rate=16000, gain_db=0.0)
+        rec2.is_recording = True
+        warnings2 = []
+        rec2.initial_audio_missing.connect(lambda: warnings2.append(True))
+
+        audible_chunk = np.full((16000, 1), 2000, dtype=np.int16)
+        for _ in range(5):
+            rec2._audio_callback(audible_chunk, 16000, None, None)
+
+        self.assertTrue(rec2.has_initial_audio())
+        self.assertEqual(len(warnings2), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

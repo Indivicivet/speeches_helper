@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFormLayout,
+    QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from src.ui.styles import AUDIO_WARNING_BANNER_STYLE
 
 
 class PracticeView(QWidget):
@@ -175,6 +177,22 @@ class PracticeView(QWidget):
         mic_layout.addWidget(self.mic_bar)
         main_layout.addLayout(mic_layout)
 
+        # Audio warning banner for missing microphone input
+        self.audio_warning_banner = QFrame()
+        self.audio_warning_banner.setStyleSheet(AUDIO_WARNING_BANNER_STYLE)
+        warning_layout = QHBoxLayout(self.audio_warning_banner)
+        warning_layout.setContentsMargins(12, 8, 12, 8)
+        self.lbl_audio_warning = QLabel(
+            "⚠️ Warning: No audio detected in the first 5 seconds. Please check your microphone setup and input settings to fix your audio."
+        )
+        self.lbl_audio_warning.setWordWrap(True)
+        self.lbl_audio_warning.setStyleSheet(
+            "color: #fbbf24; font-weight: 600; font-size: 13px;"
+        )
+        warning_layout.addWidget(self.lbl_audio_warning)
+        self.audio_warning_banner.setVisible(False)
+        main_layout.addWidget(self.audio_warning_banner)
+
         self.btn_peek_global.setFocusPolicy(Qt.NoFocus)
         self.btn_start_phone.setFocusPolicy(Qt.NoFocus)
         self.btn_stop_alarm.setFocusPolicy(Qt.NoFocus)
@@ -210,6 +228,14 @@ class PracticeView(QWidget):
     def set_mic_level(self, level):
         """Sets mic progress bar value (0.0 to 1.0)."""
         self.mic_bar.setValue(int(level * 100))
+
+    def show_audio_warning(self):
+        """Displays warning that initial audio was missing in recording."""
+        self.audio_warning_banner.setVisible(True)
+
+    def clear_audio_warning(self):
+        """Hides the audio warning banner."""
+        self.audio_warning_banner.setVisible(False)
 
     def _format_time(self, total_seconds):
         total_seconds = max(0, int(total_seconds))
@@ -380,6 +406,7 @@ class PracticeView(QWidget):
             self.stop_speech()
 
     def start_speech(self):
+        self.clear_audio_warning()
         self.is_speaking = True
         self.global_start_time = time.time()
         self.global_elapsed_seconds = 0.0

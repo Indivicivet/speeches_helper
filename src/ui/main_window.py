@@ -62,6 +62,9 @@ class MainWindow(QMainWindow):
         self.practice_view.speech_started.connect(self._on_speech_started)
         self.practice_view.speech_stopped.connect(self._on_speech_stopped)
         self.recorder.level_changed.connect(self.practice_view.set_mic_level)
+        self.recorder.initial_audio_missing.connect(
+            self.practice_view.show_audio_warning
+        )
         self.tabs.currentChanged.connect(self._on_tab_changed)
 
     def _on_tab_changed(self, index):
@@ -98,6 +101,8 @@ class MainWindow(QMainWindow):
                 f"Recorded audio could not be exported to {mp3_path}:\n{exc}",
             )
 
+        has_initial_audio = self.recorder.has_initial_audio()
+
         # Fail-safe save: persist initial session metadata to disk immediately
         self.session_manager.save_initial_session(
             session_id=session_id,
@@ -107,6 +112,7 @@ class MainWindow(QMainWindow):
             phone_timer_start_time=metadata["phone_timer_start_time"],
             phone_timer_starts=metadata.get("phone_timer_starts", []),
             peek_events=metadata["peek_events"],
+            has_initial_audio=has_initial_audio,
         )
 
         # Start transcription on background thread
@@ -133,12 +139,13 @@ class MainWindow(QMainWindow):
             )
         )
         self.transcriber_thread.finished.connect(
-            lambda res, pt=phone_timer_data: self._on_transcription_finished(
+            lambda res, pt=phone_timer_data, hia=has_initial_audio: self._on_transcription_finished(
                 session_id,
                 res,
                 metadata["global_duration_seconds"],
                 pause_thresh,
                 phone_timer_data=pt,
+                has_initial_audio=hia,
             )
         )
         self.transcriber_thread.failed.connect(
@@ -153,6 +160,7 @@ class MainWindow(QMainWindow):
         global_duration,
         pause_threshold,
         phone_timer_data=None,
+        has_initial_audio=None,
     ):
         profiler = SpeechProfiler(pause_threshold_seconds=pause_threshold)
         profile_data = profiler.analyze(
@@ -166,6 +174,7 @@ class MainWindow(QMainWindow):
             session_id=session_id,
             transcription_data=trans_result,
             profile_data=profile_data,
+            has_initial_audio=has_initial_audio,
         )
 
         self.practice_view.set_transcription_status(

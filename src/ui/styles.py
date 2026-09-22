@@ -239,3 +239,8 @@ PHONE_TIMER_CARD_STYLE = (
     "background-color: #241c30; border: 1px solid #7e57c2; border-radius: 6px; "
     "padding: 8px 14px;"
 )
+
+AUDIO_WARNING_BANNER_STYLE = (
+    "background-color: #3b2816; border: 1px solid #d97706; border-radius: 8px; "
+    "padding: 12px 16px; color: #fbbf24;"
+)

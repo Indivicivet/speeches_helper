@@ -10,7 +10,13 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from src.ui.styles import KPI_CARD_STYLE, PAUSE_BADGE_STYLE, SPEECH_CARD_STYLE
+from src.audio.recorder import check_audio_file_initial_energy
+from src.ui.styles import (
+    AUDIO_WARNING_BANNER_STYLE,
+    KPI_CARD_STYLE,
+    PAUSE_BADGE_STYLE,
+    SPEECH_CARD_STYLE,
+)
 
 
 class ReportView(QWidget):
@@ -49,6 +55,22 @@ class ReportView(QWidget):
         top_bar.addWidget(self.btn_refresh)
         top_bar.addStretch(1)
         layout.addLayout(top_bar)
+
+        # Warning banner for missing initial audio
+        self.warning_banner = QFrame()
+        self.warning_banner.setStyleSheet(AUDIO_WARNING_BANNER_STYLE)
+        wb_layout = QHBoxLayout(self.warning_banner)
+        wb_layout.setContentsMargins(14, 10, 14, 10)
+        self.lbl_warning_text = QLabel(
+            "⚠️ Audio Warning: No audio was detected in the first 5 seconds of this speech. Please check your microphone setup and input settings to fix your audio."
+        )
+        self.lbl_warning_text.setWordWrap(True)
+        self.lbl_warning_text.setStyleSheet(
+            "color: #fbbf24; font-weight: 600; font-size: 13px;"
+        )
+        wb_layout.addWidget(self.lbl_warning_text)
+        self.warning_banner.setVisible(False)
+        layout.addWidget(self.warning_banner)
 
         # KPI Cards Row
         self.kpi_layout = QHBoxLayout()
@@ -186,9 +208,19 @@ class ReportView(QWidget):
         if audio_path.exists():
             self.player.load(str(audio_path))
 
+        tot_sec = session_data.get("global_duration_seconds", 0.0)
+        has_initial_audio = session_data.get("has_initial_audio")
+        if has_initial_audio is None:
+            if audio_path.exists():
+                has_initial_audio = check_audio_file_initial_energy(audio_path)
+            else:
+                has_initial_audio = False if tot_sec > 0 else True
+            session_data["has_initial_audio"] = has_initial_audio
+
+        self.warning_banner.setVisible(not has_initial_audio)
+
         profile = session_data.get("profile") or {}
 
-        tot_sec = session_data.get("global_duration_seconds", 0.0)
         eff_sec = profile.get("effective_duration_seconds", tot_sec)
         words = profile.get("total_words", 0)
         wpm = profile.get("speaking_pace_wpm", 0.0)
