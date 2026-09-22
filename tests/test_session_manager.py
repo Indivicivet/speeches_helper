@@ -1,8 +1,9 @@
+import os
 import shutil
 import tempfile
 import unittest
 from pathlib import Path
-from src.core.session_manager import SessionManager
+from src.core.session_manager import REPO_ROOT, SessionManager
 
 
 class TestSessionManager(unittest.TestCase):
@@ -63,6 +64,22 @@ class TestSessionManager(unittest.TestCase):
         # Should be reverse chronological
         self.assertEqual(sessions[0]["session_id"], "session_20260920_110000")
         self.assertEqual(sessions[1]["session_id"], "session_20260920_100000")
+
+    def test_sessions_dir_relative_to_repo_root(self):
+        orig_cwd = os.getcwd()
+        try:
+            os.chdir(self.test_dir)
+            manager_default = SessionManager()
+            self.assertEqual(
+                manager_default.sessions_dir, (REPO_ROOT / "sessions").resolve()
+            )
+
+            manager_relative = SessionManager("sessions")
+            self.assertEqual(
+                manager_relative.sessions_dir, (REPO_ROOT / "sessions").resolve()
+            )
+        finally:
+            os.chdir(orig_cwd)
 
 
 if __name__ == "__main__":

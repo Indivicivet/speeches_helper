@@ -4,11 +4,19 @@ from datetime import datetime
 from pathlib import Path
 
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+
+
 class SessionManager:
     """Manages reading, writing, and listing speech session files."""
 
     def __init__(self, sessions_dir="sessions"):
-        self.sessions_dir = Path(sessions_dir)
+        sessions_path = Path(sessions_dir)
+        self.sessions_dir = (
+            sessions_path
+            if sessions_path.is_absolute()
+            else (REPO_ROOT / sessions_path).resolve()
+        )
         self.sessions_dir.mkdir(parents=True, exist_ok=True)
 
     def generate_session_id(self):
