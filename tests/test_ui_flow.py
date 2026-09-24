@@ -141,8 +141,11 @@ class TestUIFlow(unittest.TestCase):
             pause_threshold=1.5,
         )
 
-        # Check that Report tab is selected (index 1)
-        self.assertEqual(self.window.tabs.currentIndex(), 1)
+        # Check that tab did NOT auto-switch (stays on current tab, e.g. 0)
+        self.assertEqual(self.window.tabs.currentIndex(), 0)
+
+        # Explicitly select session in report view to verify profile data population
+        self.window.report_view.select_session(session_id)
 
         # Check KPI values
         report = self.window.report_view
@@ -151,6 +154,46 @@ class TestUIFlow(unittest.TestCase):
         self.assertEqual(report.card_words.value_label.text(), "15")
         self.assertIn("WPM", report.card_wpm.value_label.text())
         self.assertIsNotNone(report.card_phone_timer.value_label.text())
+
+    def test_transcription_queue_overlapping_runs(self):
+        # Enqueue multiple speech stop events without waiting
+        self.window.transcription_queue.clear()
+        self.window.current_transcription_job = None
+
+        meta1 = {
+            "global_duration_seconds": 10.0,
+            "phone_timer_used": False,
+            "phone_timer_duration": 180,
+            "phone_timer_start_time": None,
+            "peek_events": [],
+            "model_name": "medium.en",
+            "pause_threshold": 1.5,
+        }
+        meta2 = {
+            "global_duration_seconds": 15.0,
+            "phone_timer_used": False,
+            "phone_timer_duration": 180,
+            "phone_timer_start_time": None,
+            "peek_events": [],
+            "model_name": "medium.en",
+            "pause_threshold": 1.5,
+        }
+
+        # Simulate job 1 already in progress
+        self.window.current_transcription_job = {"session_id": "job1"}
+
+        # Simulate speech stopped for run 2
+        self.window.current_session_id = "job2"
+        self.window._on_speech_stopped(meta1)
+
+        # Simulate speech stopped for run 3
+        self.window.current_session_id = "job3"
+        self.window._on_speech_stopped(meta2)
+
+        # Both jobs should be safely queued
+        self.assertEqual(len(self.window.transcription_queue), 2)
+        self.assertEqual(self.window.transcription_queue[0]["session_id"], "job2")
+        self.assertEqual(self.window.transcription_queue[1]["session_id"], "job3")
 
     def test_compare_view_rendering(self):
         sess1 = "test_compare_1"

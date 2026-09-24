@@ -35,6 +35,8 @@ class MainWindow(QMainWindow):
         self.current_session_id = None
         self.current_pause_threshold = 1.5
         self.transcriber_thread = None
+        self.transcription_queue = []
+        self.current_transcription_job = None
 
         self._init_ui()
         self._connect_signals()
@@ -115,43 +117,69 @@ class MainWindow(QMainWindow):
             has_initial_audio=has_initial_audio,
         )
 
-        # Start transcription on background thread
-        model_name = metadata.get("model_name", "medium.en")
-        pause_thresh = metadata.get("pause_threshold", 1.5)
-
-        self.practice_view.set_transcription_status(
-            f"Transcribing speech with '{model_name}'...", in_progress=True
-        )
-
-        phone_timer_data = {
-            "used": metadata["phone_timer_used"],
-            "duration_seconds": metadata["phone_timer_duration"],
-            "start_time_seconds": metadata["phone_timer_start_time"],
-            "starts": metadata.get("phone_timer_starts", []),
+        # Queue transcription job
+        job = {
+            "session_id": session_id,
+            "mp3_path": mp3_path,
+            "model_name": metadata.get("model_name", "medium.en"),
+            "pause_threshold": metadata.get("pause_threshold", 1.5),
+            "global_duration_seconds": metadata["global_duration_seconds"],
+            "phone_timer_data": {
+                "used": metadata["phone_timer_used"],
+                "duration_seconds": metadata["phone_timer_duration"],
+                "start_time_seconds": metadata["phone_timer_start_time"],
+                "starts": metadata.get("phone_timer_starts", []),
+            },
+            "has_initial_audio": has_initial_audio,
         }
+        self.transcription_queue.append(job)
+        self._process_next_transcription()
 
-        self.transcriber_thread = TranscriberThread(
-            audio_path=mp3_path, model_name=model_name
+    def _process_next_transcription(self):
+        if self.current_transcription_job is not None or not self.transcription_queue:
+            return
+
+        job = self.transcription_queue.pop(0)
+        self.current_transcription_job = job
+
+        remaining = len(self.transcription_queue)
+        queue_suffix = f" ({remaining} queued)" if remaining > 0 else ""
+        self.practice_view.set_transcription_status(
+            f"Transcribing speech '{job['session_id']}' with '{job['model_name']}'{queue_suffix}...",
+            in_progress=True,
         )
-        self.transcriber_thread.progress.connect(
-            lambda msg: self.practice_view.set_transcription_status(
-                msg, in_progress=True
+
+        thread = TranscriberThread(
+            audio_path=job["mp3_path"], model_name=job["model_name"]
+        )
+        self.transcriber_thread = thread
+
+        def on_progress(msg):
+            cur_job = self.current_transcription_job
+            rem = len(self.transcription_queue)
+            q_info = f" [{rem} queued]" if rem > 0 else ""
+            prefix = f"[{cur_job['session_id']}]{q_info} " if cur_job else ""
+            self.practice_view.set_transcription_status(
+                f"{prefix}{msg}", in_progress=True
+            )
+
+        thread.progress.connect(on_progress)
+        thread.finished.connect(
+            lambda res, j=job: self._on_transcription_finished(
+                session_id=j["session_id"],
+                trans_result=res,
+                global_duration=j["global_duration_seconds"],
+                pause_threshold=j["pause_threshold"],
+                phone_timer_data=j["phone_timer_data"],
+                has_initial_audio=j["has_initial_audio"],
             )
         )
-        self.transcriber_thread.finished.connect(
-            lambda res, pt=phone_timer_data, hia=has_initial_audio: self._on_transcription_finished(
-                session_id,
-                res,
-                metadata["global_duration_seconds"],
-                pause_thresh,
-                phone_timer_data=pt,
-                has_initial_audio=hia,
+        thread.failed.connect(
+            lambda err, j=job: self._on_transcription_failed(
+                session_id=j["session_id"], error_msg=err
             )
         )
-        self.transcriber_thread.failed.connect(
-            lambda err: self._on_transcription_failed(session_id, err)
-        )
-        self.transcriber_thread.start()
+        thread.start()
 
     def _on_transcription_finished(
         self,
@@ -170,30 +198,42 @@ class MainWindow(QMainWindow):
         )
 
         # Update session file with full profile and transcription
-        updated_data = self.session_manager.update_transcription_and_profile(
+        self.session_manager.update_transcription_and_profile(
             session_id=session_id,
             transcription_data=trans_result,
             profile_data=profile_data,
             has_initial_audio=has_initial_audio,
         )
 
-        self.practice_view.set_transcription_status(
-            "Speech processed and profiled.", in_progress=False
-        )
+        # Refresh report list so new session is available in Report view dropdown
+        self.report_view.refresh_session_list()
 
-        # Display in Report view and switch tabs to view results
-        self.report_view.select_session(session_id)
-        self.tabs.setCurrentIndex(1)
+        self.current_transcription_job = None
+        self.transcriber_thread = None
+
+        if self.transcription_queue:
+            self._process_next_transcription()
+        else:
+            self.practice_view.set_transcription_status(
+                "Speech processed and profiled.", in_progress=False
+            )
 
     def _on_transcription_failed(self, session_id, error_msg):
-        self.practice_view.set_transcription_status(
-            f"Transcription error: {error_msg}. Audio and baseline session saved.",
-            in_progress=False,
-        )
+        self.current_transcription_job = None
+        self.transcriber_thread = None
+
+        if self.transcription_queue:
+            self._process_next_transcription()
+        else:
+            self.practice_view.set_transcription_status(
+                f"Transcription error: {error_msg}. Audio and baseline session saved.",
+                in_progress=False,
+            )
+
         QMessageBox.warning(
             self,
             "Transcription Failed",
-            f"Whisper transcription failed:\n{error_msg}\n\nYour audio recording is preserved in ./sessions.",
+            f"Whisper transcription failed for {session_id}:\n{error_msg}\n\nYour audio recording is preserved in ./sessions.",
         )
 
     def keyPressEvent(self, event):
